@@ -1,0 +1,42 @@
+version: '3'
+
+services:
+  traefik-web-gui:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: traefik-web-gui-dev
+    
+    # Port mapping
+    ports:
+      - "5000:5000"
+    
+    # Volume mounts for local testing
+    volumes:
+      # Mount the traefik dynamic configs directory
+      # This simulates /etc/traefik/dynamic in the LXC
+      - ../test-configs:/etc/traefik/dynamic
+      
+      # Mount data directory for password persistence
+      - ../data:/var/lib/traefik-web-gui
+      
+      # Mount log directory
+      - ../logs:/var/log
+    
+    # Keep container running
+    restart: unless-stopped
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Health check status visible in docker ps
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s

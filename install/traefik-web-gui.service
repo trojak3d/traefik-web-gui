@@ -1,0 +1,35 @@
+[Unit]
+Description=Traefik Web GUI - Configuration Management Interface
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=traefik
+Group=traefik
+WorkingDirectory=/opt/traefik-web-gui
+
+# Service command - use virtual environment Python
+ExecStart=/opt/traefik-web-gui/venv/bin/python /opt/traefik-web-gui/app.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=60s
+StartLimitBurst=5
+
+# Security - note: ProtectSystem=strict blocks access to /opt, use full instead
+# NoNewPrivileges=false needed to allow sudo for restarting traefik service
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=yes
+ReadWritePaths=/etc/traefik/dynamic /var/lib/traefik-web-gui /var/log
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=traefik-web-gui
+
+[Install]
+WantedBy=multi-user.target
