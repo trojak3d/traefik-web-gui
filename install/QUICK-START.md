@@ -12,7 +12,33 @@ Simple web interface with authentication for managing Traefik configuration file
 - 👤 **Run as traefik** - No permission issues
 - 📊 **Audit logging** - Track who changed what
 
-## ⚡ 2-Minute Setup
+## ⚡ Install directly from GitHub
+
+On a Debian/Ubuntu LXC, as root, ensure the existing `traefik` user and systemd
+are available. `curl` and `ca-certificates` must be installed to download the
+helper. Then run:
+
+```bash
+curl -fL -o quick-install.sh https://raw.githubusercontent.com/trojak3d/traefik-web-gui/main/install/quick-install.sh
+# Review the downloaded script before running it as root.
+cat quick-install.sh
+bash quick-install.sh
+```
+
+The helper checks for required packages and asks before installing any missing
+ones with `apt-get`. Declining stops the installation. It downloads only the
+files needed by the installer, all from the same
+`main` branch commit, into a temporary directory. It runs the existing installer,
+fixes virtual-environment read/traverse permissions for the service user, and
+starts or restarts the GUI service. It does not create the `traefik` user or
+configure a Traefik router. GitHub's `main` branch can change: review the code
+you trust before running it as root.
+
+Configure a Traefik router as described in [Network Access](#-network-access)
+before accessing the GUI remotely. Check the service with
+`systemctl status traefik-web-gui` and `journalctl -u traefik-web-gui -n 50 --no-pager`.
+
+## Workstation-copy installation
 
 ### 0. Prerequisites
 
@@ -31,10 +57,7 @@ Also ensure the `traefik` user exists:
 ssh root@<your-lxc-ip> 'id traefik'
 ```
 
-If not found, create it:
-```bash
-ssh root@<your-lxc-ip> 'useradd -r -s /bin/false traefik'
-```
+If not found, ensure Traefik and its service user are installed before proceeding.
 
 ### 1. Copy files from your workstation
 
@@ -107,14 +130,13 @@ journalctl -u traefik-web-gui -n 10
 
 ### 4. Access the GUI and complete setup
 
-**From the LXC or any machine that can reach the LXC:**
+**Test locally on the LXC:**
 ```bash
-# Test locally on LXC:
 curl http://localhost:5000
-
-# Or from a browser on a machine with network access to LXC:
-http://<your-lxc-ip>:5000
 ```
+
+For remote access, configure the Traefik router in
+[Network Access](#-network-access) and open its HTTPS hostname in your browser.
 
 **On first run, complete the setup:**
 1. You'll be redirected to the setup page
@@ -140,7 +162,7 @@ If you can SSH to the LXC but can't directly access port 5000, use SSH port forw
 
 ```bash
 # From your workstation (Windows PowerShell or WSL):
-ssh -L 5000:localhost:5000 root@192.168.178.222
+ssh -L 5000:localhost:5000 root@<your-lxc-ip>
 
 # Keep this terminal open, then access:
 # http://localhost:5000
@@ -166,7 +188,8 @@ http:
           - url: http://localhost:5000
 ```
 
-**Note:** Direct access issues (SSH works, but port 5000 doesn't) indicate LXC network routing restrictions. This is not an application issue.
+Direct port 5000 access depends on your network and firewall configuration.
+Use a hostname that resolves to Traefik and configure a suitable TLS certificate.
 
 ## 🎮 Using the GUI
 
@@ -216,17 +239,19 @@ systemctl start traefik-web-gui
 The service accepts environment variables for configuration:
 
 ```bash
-# Edit the environment (optional)
-export GUI_PORT=5000
-export GUI_HOST=0.0.0.0
-export TRAEFIK_CONFIG_DIR=/etc/traefik/dynamic
-export SECRET_KEY=change-me-for-production
-export GUI_DATA_DIR=/var/lib/traefik-web-gui
-export GUI_USERNAME=admin
+# Environment variables (all optional—defaults work fine)
+export GUI_PORT=5000                           # Port to listen on (default: 5000)
+export GUI_HOST=0.0.0.0                        # Bind address (default: 0.0.0.0)
+export TRAEFIK_CONFIG_DIR=/etc/traefik/dynamic # Path to Traefik configs (default: /etc/traefik/dynamic)
+export GUI_DATA_DIR=/var/lib/traefik-web-gui   # Data directory for passwords and secret key (default: /var/lib/traefik-web-gui)
+export GUI_USERNAME=admin                      # Username (default: admin)
+# SECRET_KEY is automatically generated on first run—no manual configuration needed
 ```
 
 Most defaults work fine. The only critical one is:
 - **`TRAEFIK_CONFIG_DIR`** - Where your Traefik configs are stored (default: `/etc/traefik/dynamic`)
+
+**Note:** The Flask session secret key is automatically generated and stored securely during the first run—you don't need to set it manually.
 
 ## 🔍 Verification
 

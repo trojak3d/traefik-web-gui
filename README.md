@@ -31,6 +31,7 @@ traefik-web-gui/
 │   └── .dockerignore
 ├── install/                 # SystemD service installation
 │   ├── install.sh          # Production installer script
+│   ├── quick-install.sh    # Download and run the installer on the host
 │   ├── traefik-web-gui.service  # SystemD unit file
 │   └── QUICK-START.md      # Quick installation guide
 ├── README.md               # This file
@@ -40,7 +41,67 @@ traefik-web-gui/
 
 ## 🚀 Installation Methods
 
-### Option 1: Docker (Local Testing)
+### Option 1: SystemD Service (Production) ⭐ **RECOMMENDED**
+
+For LXC containers, Proxmox, or Ubuntu/Debian servers. This is the **primary deployment method**.
+
+📖 **Full guide**: See [install/QUICK-START.md](install/QUICK-START.md)
+
+**Why SystemD?**
+- ✅ Runs as systemd service (auto-restart on failure)
+- ✅ Runs as traefik user (with sudo permission to restart Traefik)
+- ✅ Logs to journalctl (easy debugging)
+- ✅ Integrates with git-sync service
+- ✅ Boot-on-startup ready
+- ✅ Production-grade setup
+
+**Quick install from GitHub**, on a Debian/Ubuntu LXC as root:
+```bash
+# curl is needed to download the helper.
+curl -fL -o quick-install.sh https://raw.githubusercontent.com/trojak3d/traefik-web-gui/main/install/quick-install.sh
+# Review the downloaded script before running it as root.
+cat quick-install.sh
+bash quick-install.sh
+```
+
+The existing `traefik` user and systemd are required. The helper downloads the
+necessary files from one `main` branch commit, offers to install missing Debian
+packages, runs the installer, and starts or restarts the GUI service. Install
+`curl` and `ca-certificates` first if needed. It does not configure a Traefik
+router. The branch is mutable; review the installer and files you trust before
+running them as root.
+See the [quick start](install/QUICK-START.md) for a workstation-copy alternative.
+
+**Access via Traefik** (Recommended):
+Configure a Traefik router for remote access:
+
+```yaml
+# Add to /etc/traefik/dynamic/traefik-web-gui.yml
+http:
+  routers:
+    traefik-gui:
+      rule: Host(`gui.yourdomain.com`)
+      entryPoints:
+        - websecure
+      service: traefik-gui
+      tls: {}
+
+  services:
+    traefik-gui:
+      loadBalancer:
+        servers:
+          - url: http://localhost:5000
+```
+
+Then access: `https://gui.yourdomain.com`
+
+**What happens**:
+1. Installer creates `/opt/traefik-web-gui/` and `/var/lib/traefik-web-gui/`
+2. The helper starts the service and enables it on boot
+3. First access → setup page (change default password)
+4. All future logins use your new password
+
+### Option 2: Docker (Local Testing)
 
 Perfect for testing and development. No LXC needed.
 
@@ -65,48 +126,16 @@ Then access **http://localhost:5000**
 3. File manager → edit configs
 4. Changes saved to `../test-configs/`
 
-### Option 2: SystemD Service (Production)
-
-For LXC containers or Ubuntu/Debian servers.
-
-```bash
-# SSH into your LXC
-ssh root@<your-lxc-ip>
-
-# Copy and run installer
-cd /opt
-scp -r <your-workstation>:/path/to/traefik-web-gui .
-cd traefik-web-gui/install
-chmod +x install.sh
-sudo ./install.sh
-
-# Start service
-sudo systemctl start traefik-web-gui
-
-# Access
-# http://<your-lxc-ip>:5000
-```
-
-📖 **Full guide**: See [install/QUICK-START.md](install/QUICK-START.md)
-
-**Features**:
-- ✅ Runs as systemd service (auto-restart)
-- ✅ Runs as traefik user (correct permissions)
-- ✅ Logs to journalctl (easy debugging)
-- ✅ Integrates with git-sync service
-- ✅ Boot-on-startup ready
-
-**What happens**:
-1. Installer creates `/opt/traefik-web-gui/` and `/var/lib/traefik-web-gui/`
-2. Service starts on boot
-3. First access → setup page (change default password)
-4. All future logins use your new password
-
-## 🎮 Quick Start (Either Method)
+## 🎮 Quick Start
 
 ### 1. Access the GUI
-- **Docker**: http://localhost:5000
-- **LXC**: http://<your-lxc-ip>:5000
+
+**SystemD (Production)**:
+- Use Traefik reverse proxy (recommended): `https://gui.yourdomain.com`
+- Or SSH tunnel (temporary): `ssh -L 5000:localhost:5000 root@<lxc-ip>` then `http://localhost:5000`
+
+**Docker (Testing)**:
+- Direct access: `http://localhost:5000`
 
 ### 2. Complete Setup (First Run Only)
 On first access, you'll see the setup page:
@@ -123,21 +152,24 @@ On first access, you'll see the setup page:
 - **Edit**: Click file → edit → save
 - **Create**: "+ New File" button → enter name and content → create
 - **Delete**: Select file → delete → confirm
+- **Restart Traefik**: After config changes, click "🔄 Restart Traefik" to reload
 
 ## ⚙️ Configuration
 
 ### Environment Variables
 
-The app accepts these environment variables (optional, defaults work fine):
+The app accepts these environment variables (all optional, defaults work fine):
 
 ```bash
-export GUI_PORT=5000                           # Port to listen on
-export GUI_HOST=0.0.0.0                        # Bind address (0.0.0.0 = all interfaces)
-export TRAEFIK_CONFIG_DIR=/etc/traefik/dynamic # Path to Traefik configs
-export GUI_DATA_DIR=/var/lib/traefik-web-gui   # Where passwords are stored
-export GUI_USERNAME=admin                      # Username (changed on setup)
-export SECRET_KEY=change-me-for-production     # Flask session secret
+export GUI_PORT=5000                           # Port to listen on (default: 5000)
+export GUI_HOST=0.0.0.0                        # Bind address (0.0.0.0 = all interfaces; default: 0.0.0.0)
+export TRAEFIK_CONFIG_DIR=/etc/traefik/dynamic # Path to Traefik configs (default: /etc/traefik/dynamic)
+export GUI_DATA_DIR=/var/lib/traefik-web-gui   # Where passwords and secret key are stored (default: /var/lib/traefik-web-gui)
+export GUI_USERNAME=admin                      # Username (changed on setup; default: admin)
+# SECRET_KEY: Automatically generated and stored securely on first run. Optionally set to override.
 ```
+
+**Note on SECRET_KEY:** A cryptographically secure session key is **automatically generated** during the first run and stored in `$GUI_DATA_DIR/.secret_key`. You do not need to manually set this—it's handled for you as a security best practice.
 
 For LXC deployment, these are set via systemd:
 ```bash
@@ -171,8 +203,7 @@ sudo rm /var/lib/traefik-web-gui/password.json
 # Start service
 sudo systemctl start traefik-web-gui
 
-# Access and re-run setup
-# http://<your-lxc-ip>:5000
+# Access via Traefik (see Installation section)
 ```
 
 ## 🔐 Security
@@ -183,34 +214,54 @@ sudo systemctl start traefik-web-gui
 - ✅ **Path protection** - Can't escape the config directory
 - ✅ **Audit logging** - All actions logged with username and timestamp
 - ✅ **Non-root execution** - Runs as traefik user (not root)
-- ✅ **Local-only by default** - Use firewall/Traefik to expose safely
+- ✅ **HTTPS recommended** - Use Traefik with TLS and restrict direct access to port 5000
+- ✅ **Restart capability** - Can reload Traefik configs with one click (via sudo)
 
-### Production Tips
+### Production Deployment
 
-1. **Use HTTPS**: Put this behind Traefik with TLS certificates
-   ```yaml
-   # In Traefik dynamic config
-   traefik-web-gui:
-     service: traefik-web-gui-svc
-     rule: "Host(`gui.example.com`)"
-     tls:
-       certResolver: letsencrypt
-   ```
+**Always use Traefik as a reverse proxy:**
 
-2. **Restrict access**: Use Traefik middleware to limit IPs
-   ```yaml
-   ipwhitelist:
-     sourceRange:
-       - "192.168.1.0/24"
-       - "10.0.0.1"
-   ```
+```yaml
+# /etc/traefik/dynamic/traefik-web-gui.yml
+http:
+  routers:
+    traefik-gui:
+      rule: Host(`gui.yourdomain.com`)
+      entryPoints:
+        - websecure
+      service: traefik-gui-svc
+      tls: {}
+      # Optional: Add middleware for IP restriction
+      middlewares:
+        - traefik-gui-auth
 
-3. **Monitor logs**: Regularly check for failed login attempts
+  services:
+    traefik-gui-svc:
+      loadBalancer:
+        servers:
+          - url: http://localhost:5000
+
+  middlewares:
+    traefik-gui-auth:
+      ipWhiteList:
+        sourceRange:
+          - "192.168.1.0/24"  # Restrict to your network
+```
+
+**Why not direct port 5000 access?**
+- Direct port 5000 access depends on your network and firewall configuration
+- Traefik provides HTTPS/TLS termination
+- Traefik enables middleware (auth, IP restrictions, etc.)
+
+**Additional Security Steps**:
+1. **Monitor logs**: Regularly check for failed login attempts
    ```bash
    journalctl -u traefik-web-gui -f
    ```
 
-4. **Change default password immediately** on first setup
+2. **Change default password immediately** on first setup
+
+3. **Restrict by IP** using Traefik middleware (see example above)
 
 ## 🧪 Testing
 
