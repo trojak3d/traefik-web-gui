@@ -4,6 +4,8 @@ A simple, secure web interface for managing Traefik configuration files. Edit, c
 
 🎯 **Perfect for**: Managing Traefik configs on LXC containers, Proxmox setups, or cloud servers without SSH access.
 
+<img width="843" height="862" alt="image" src="https://github.com/user-attachments/assets/7da609eb-068f-4b3e-a3bd-c3122b96c0b4" />
+
 ## ✨ Features
 
 - 📝 **Text Editor** - Edit YAML configurations directly in browser
